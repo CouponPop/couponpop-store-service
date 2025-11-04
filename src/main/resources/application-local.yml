@@ -4,3 +4,8 @@ server:
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.show-details: always
+
+# client:
+#   coupon-service:
+#     name: coupon-service
+#     url: http://localhost:8083
