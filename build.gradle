@@ -6,9 +6,15 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.4.10'
+    id 'org.springframework.boot' version '3.4.11'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'org.flywaydb.flyway' version '11.14.0'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:2024.0.0"
+    }
 }
 
 flyway {
@@ -96,6 +102,9 @@ dependencies {
     // [CouponPop Module]
     implementation 'com.couponpop:couponpop-security:0.0.1-SNAPSHOT'
     implementation 'com.couponpop:couponpop-core:0.0.2-SNAPSHOT'
+
+    // [Spring Cloud Starter]
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
     // [DB]
     runtimeOnly 'com.mysql:mysql-connector-j'
