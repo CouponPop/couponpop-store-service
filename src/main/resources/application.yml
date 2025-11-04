@@ -1,6 +1,3 @@
-server:
-  port: 8082
-
 spring:
   application:
     name: store-service
@@ -31,6 +28,10 @@ spring:
     baseline-version: 1
     validate-on-migrate: true
     clean-disabled: true
+
+  data:
+    elasticsearch:
+      uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
 
 jwt:
   secret:
