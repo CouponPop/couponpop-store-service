@@ -37,10 +37,4 @@
     HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:8080/actuator/health || exit 1
     
     # 실행 명령
-    ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-
-    # ---------- [3단계] ES ----------
-    FROM docker.elastic.co/elasticsearch/elasticsearch:8.17.4 
-    
-    # Nori Analyzer 플러그인 설치
-    RUN bin/elasticsearch-plugin install --batch analysis-nori 
+    ENTRYPOINT ["java", "-jar", "/app/app.jar"] 
