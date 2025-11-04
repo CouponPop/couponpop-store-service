@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: member-service
+    name: store-service
 
   # AWS Parameter Store에서 설정을 가져오도록 Spring Cloud AWS Config 설정
   config:
