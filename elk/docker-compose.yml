@@ -11,6 +11,7 @@ services:
       - discovery.type=single-node # 단일 노드 (지금은 알 필요 없음)
       - xpack.security.enabled=false # 보안 설정
       - xpack.security.http.ssl.enabled=false # 보안 설정
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
@@ -38,8 +39,8 @@ services:
     user: root
     command: ["filebeat", "-e", "--strict.perms=false"]
     volumes:
-      - ../logstash/config/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - ../logs:/logs:ro # 애플리케이션 로그 디렉토리
+      - ../filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ../build/logs:/logs:ro # 애플리케이션 로그 디렉토리
       - filebeat_data:/usr/share/filebeat/data
     environment:
       - LOGSTASH_HOSTS=logstash:5044
