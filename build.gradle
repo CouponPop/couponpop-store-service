@@ -16,7 +16,7 @@ flyway {
     locations = ['filesystem:src/main/resources/db/migration']
     baselineOnMigrate = true
     baselineVersion = 1
-    cleanDisabled = true
+    cleanDisabled = false
 }
 
 group = 'com.couponpop'
@@ -35,36 +35,104 @@ configurations {
     }
 }
 
+// .env로부터 GITHUB_ACTOR와 GITHUB_TOKEN을 읽어오는 함수
+def loadGithubCredentials() {
+    def credentials = [:]
+    def envFile = file('.env')
+    def foundKeys = 0
+
+    if (envFile.exists()) {
+        envFile.eachLine { line ->
+            if (foundKeys == 2) return // 두 키 다 찾으면 조기 종료
+            if (!line.startsWith('#') && line.contains('=')) {
+                def (key, value) = line.split('=', 2)*.trim()
+                if (key in ['GITHUB_ACTOR', 'GITHUB_TOKEN']) {
+                    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+                        value = value.substring(1, value.length() - 1)
+                    }
+                    credentials[key] = value
+                    foundKeys++ //
+                }
+            }
+        }
+    }
+
+    return credentials
+}
+
 repositories {
     mavenCentral()
+
+    def githubCredentials = loadGithubCredentials()
+    def githubUsername = githubCredentials.GITHUB_ACTOR ?: System.getenv("GITHUB_ACTOR") ?: "unknown"
+    def githubToken = githubCredentials.GITHUB_TOKEN ?: System.getenv("GITHUB_TOKEN") ?: "unknown"
+
+    maven {
+        url = uri("https://maven.pkg.github.com/CouponPop/couponpop-security-module")
+        credentials {
+            username = githubUsername
+            password = githubToken
+        }
+    }
+
+    maven {
+        url = uri("https://maven.pkg.github.com/CouponPop/couponpop-core-module")
+        credentials {
+            username = githubUsername
+            password = githubToken
+        }
+    }
 }
 
 dependencies {
     // [Spring Boot Starter]
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // [CouponPop Module]
+    implementation 'com.couponpop:couponpop-security:0.0.1-SNAPSHOT'
+    implementation 'com.couponpop:couponpop-core:0.0.2-SNAPSHOT'
 
     // [DB]
     runtimeOnly 'com.mysql:mysql-connector-j'
     runtimeOnly 'com.h2database:h2'
 
+    // [Querydsl]
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"
+    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+
     // [Flyway]
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
 
+    // [Elasticsearch]
+    implementation 'co.elastic.clients:elasticsearch-java'
+
+    // [Spatial/GIS]
+    implementation 'org.hibernate.orm:hibernate-spatial:6.5.3.Final'
+    implementation 'org.locationtech.jts:jts-core:1.19.0'
+
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
+    // [Compile & Runtime & Test]
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
 
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:mysql'
+
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
