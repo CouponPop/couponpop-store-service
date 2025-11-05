@@ -1,5 +1,6 @@
 package com.couponpop.storeservice.domain.store.service;
 
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
 import com.couponpop.storeservice.common.dto.couponevent.response.StoreOwnershipResponse;
 import com.couponpop.storeservice.common.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
 import com.couponpop.storeservice.common.dto.store.response.StoreResponse;
@@ -85,6 +86,18 @@ public class StoreInternalServiceImpl implements StoreInternalService {
 
         return stores.stream()
                 .map(store -> StoreResponse.from(store))
+                .toList();
+    }
+
+    @Override
+    public List<StoreRegionInfoResponse> findRegionInfoByIds(List<Long> storeIds) {
+        List<Store> stores = storeRepository.findAllById(storeIds);
+
+        return stores.stream()
+                .map(store -> StoreRegionInfoResponse.of(
+                        store.getId(),
+                        store.getDong()
+                ))
                 .toList();
     }
 }

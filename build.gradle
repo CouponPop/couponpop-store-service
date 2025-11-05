@@ -102,7 +102,7 @@ dependencies {
 
     // [CouponPop Module]
     implementation 'com.couponpop:couponpop-security:0.0.1-SNAPSHOT'
-    implementation 'com.couponpop:couponpop-core:0.0.2-SNAPSHOT'
+    implementation 'com.couponpop:couponpop-core:0.0.4-SNAPSHOT'
 
     // [Spring Cloud Starter]
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'

@@ -48,3 +48,4 @@ jwt:
       - /swagger-resources/**
       - /webjars/**
       - /docs/**
+      - /internal/batch/**
