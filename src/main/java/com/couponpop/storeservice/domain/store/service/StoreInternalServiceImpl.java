@@ -1,8 +1,9 @@
 package com.couponpop.storeservice.domain.store.service;
 
-import com.couponpop.storeservice.common.dto.couponevent.response.StoreOwnershipResponse;
-import com.couponpop.storeservice.common.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
-import com.couponpop.storeservice.common.dto.store.response.StoreResponse;
+import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnershipResponse;
+import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import com.couponpop.storeservice.common.exception.GlobalException;
 import com.couponpop.storeservice.domain.store.entity.Store;
 import com.couponpop.storeservice.domain.store.exception.StoreErrorCode;
@@ -37,7 +38,7 @@ public class StoreInternalServiceImpl implements StoreInternalService {
                 .orElseThrow(() -> new GlobalException(StoreErrorCode.STORE_NOT_FOUND));
 
         boolean isOwner = store.getMemberId().equals(memberId);
-        return StoreOwnershipResponse.of(isOwner);
+        return StoreOwnershipResponse.from(isOwner);
     }
 
     /**
@@ -58,7 +59,7 @@ public class StoreInternalServiceImpl implements StoreInternalService {
         }
 
         return stores.stream()
-                .map(store -> StoreResponse.from(store))
+                .map(this::toStoreResponse)
                 .toList();
     }
 
@@ -72,7 +73,7 @@ public class StoreInternalServiceImpl implements StoreInternalService {
         Store store = storeRepository.findById(storeId)
                 .orElseThrow(() -> new GlobalException(StoreErrorCode.STORE_NOT_FOUND));
 
-        return StoreResponse.from(store);
+        return toStoreResponse(store);
     }
 
     /**
@@ -84,7 +85,21 @@ public class StoreInternalServiceImpl implements StoreInternalService {
         List<Store> stores = storeRepository.findAllById(storeIds);
 
         return stores.stream()
-                .map(store -> StoreResponse.from(store))
+                .map(this::toStoreResponse)
                 .toList();
+    }
+
+    /**
+     * Store entity를 core-module의 StoreResponse로 변환
+     */
+    private StoreResponse toStoreResponse(Store store) {
+        return StoreResponse.of(
+                store.getId(),
+                store.getName(),
+                StoreCategory.valueOf(store.getStoreCategory().name()),
+                store.getLatitude(),
+                store.getLongitude(),
+                store.getImageUrl()
+        );
     }
 }
