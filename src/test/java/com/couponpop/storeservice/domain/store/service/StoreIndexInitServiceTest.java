@@ -1,7 +1,7 @@
 package com.couponpop.storeservice.domain.store.service;
 
 import com.couponpop.storeservice.domain.store.entity.Store;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import com.couponpop.storeservice.domain.store.repository.StoreRepository;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import com.couponpop.storeservice.utils.TestUtils;

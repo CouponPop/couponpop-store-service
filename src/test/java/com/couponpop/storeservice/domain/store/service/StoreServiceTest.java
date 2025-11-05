@@ -5,7 +5,7 @@ import com.couponpop.storeservice.domain.store.dto.request.CreateStoreRequest;
 import com.couponpop.storeservice.domain.store.dto.response.StoreMapResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreResponse;
 import com.couponpop.storeservice.domain.store.entity.Store;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import com.couponpop.storeservice.domain.store.repository.StoreRepository;
 import com.couponpop.storeservice.utils.TestUtils;
 import org.junit.jupiter.api.DisplayName;

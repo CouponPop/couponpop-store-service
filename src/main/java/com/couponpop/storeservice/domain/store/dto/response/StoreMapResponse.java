@@ -1,7 +1,7 @@
 package com.couponpop.storeservice.domain.store.dto.response;
 
 import com.couponpop.storeservice.domain.store.entity.Store;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 
 public record StoreMapResponse(
         Long id,

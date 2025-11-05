@@ -1,7 +1,7 @@
 package com.couponpop.storeservice.domain.store.dto.response;
 
 import com.couponpop.storeservice.domain.store.document.StoreDocument;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 
 /**
  * 매장 검색 추천 응답 DTO
