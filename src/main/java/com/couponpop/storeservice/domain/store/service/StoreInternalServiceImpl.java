@@ -4,6 +4,7 @@ import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnership
 import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
 import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
 import com.couponpop.couponpopcoremodule.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
 import com.couponpop.storeservice.common.exception.GlobalException;
 import com.couponpop.storeservice.domain.store.entity.Store;
 import com.couponpop.storeservice.domain.store.exception.StoreErrorCode;
@@ -86,6 +87,18 @@ public class StoreInternalServiceImpl implements StoreInternalService {
 
         return stores.stream()
                 .map(this::toStoreResponse)
+                .toList();
+    }
+
+    @Override
+    public List<StoreRegionInfoResponse> findRegionInfoByIds(List<Long> storeIds) {
+        List<Store> stores = storeRepository.findAllById(storeIds);
+
+        return stores.stream()
+                .map(store -> StoreRegionInfoResponse.of(
+                        store.getId(),
+                        store.getDong()
+                ))
                 .toList();
     }
 

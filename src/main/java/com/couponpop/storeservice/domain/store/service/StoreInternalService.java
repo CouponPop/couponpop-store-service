@@ -3,6 +3,7 @@ package com.couponpop.storeservice.domain.store.service;
 import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnershipResponse;
 import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
 import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
 
 import java.util.List;
 
@@ -15,4 +16,6 @@ public interface StoreInternalService {
     StoreResponse findByIdOrElseThrow(Long storeId);
 
     List<StoreResponse> findAllByIds(List<Long> storeIds);
+
+    List<StoreRegionInfoResponse> findRegionInfoByIds(List<Long> storeIds);
 }
