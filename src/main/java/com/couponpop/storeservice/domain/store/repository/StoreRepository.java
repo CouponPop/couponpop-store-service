@@ -51,4 +51,7 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             @QueryHint(name = "org.hibernate.readOnly", value = "true")
     })
     Stream<Store> streamAll();
+
+    @Query("SELECT s FROM Store s WHERE s.dong IN :dongs")
+    List<Store> findByDongIn(List<String> dongs);
 }
