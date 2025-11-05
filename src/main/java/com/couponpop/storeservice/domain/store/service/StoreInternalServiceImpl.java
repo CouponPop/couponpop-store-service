@@ -2,9 +2,9 @@ package com.couponpop.storeservice.domain.store.service;
 
 import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnershipResponse;
 import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
-import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
-import com.couponpop.couponpopcoremodule.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreIdsByDongResponse;
 import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
 import com.couponpop.storeservice.common.exception.GlobalException;
 import com.couponpop.storeservice.domain.store.entity.Store;
 import com.couponpop.storeservice.domain.store.exception.StoreErrorCode;
@@ -114,5 +114,20 @@ public class StoreInternalServiceImpl implements StoreInternalService {
                 store.getLongitude(),
                 store.getImageUrl()
         );
+    }
+
+    @Override
+    public List<StoreIdsByDongResponse> findStoreIdsByDongs(List<String> dongs) {
+        List<Store> stores = storeRepository.findByDongIn(dongs);
+
+        return dongs.stream()
+                .map(dong -> {
+                    List<Long> storeIds = stores.stream()
+                            .filter(store -> store.getDong().equals(dong))
+                            .map(Store::getId)
+                            .toList();
+                    return StoreIdsByDongResponse.of(dong, storeIds);
+                })
+                .toList();
     }
 }

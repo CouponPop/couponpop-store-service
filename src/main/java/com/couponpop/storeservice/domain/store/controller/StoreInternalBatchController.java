@@ -1,5 +1,6 @@
 package com.couponpop.storeservice.domain.store.controller;
 
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreIdsByDongResponse;
 import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
 import com.couponpop.storeservice.common.response.ApiResponse;
 import com.couponpop.storeservice.domain.store.service.StoreInternalService;
@@ -31,6 +32,16 @@ public class StoreInternalBatchController {
     public ResponseEntity<ApiResponse<List<StoreRegionInfoResponse>>> findRegionInfoByIds(@RequestBody List<Long> storeIds) {
 
         List<StoreRegionInfoResponse> response = storeInternalService.findRegionInfoByIds(storeIds);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 매장 dong 리스트로 매장 ID 리스트 조회
+     */
+    @PostMapping("/v1/stores/search")
+    public ResponseEntity<ApiResponse<List<StoreIdsByDongResponse>>> findStoreIdsByDongs(@RequestBody List<String> dongs) {
+
+        List<StoreIdsByDongResponse> response = storeInternalService.findStoreIdsByDongs(dongs);
         return ApiResponse.success(response);
     }
 }
