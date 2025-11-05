@@ -2,7 +2,7 @@ package com.couponpop.storeservice.domain.store.service;
 
 import com.couponpop.storeservice.domain.store.document.StoreDocument;
 import com.couponpop.storeservice.domain.store.entity.Store;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import com.couponpop.storeservice.utils.TestUtils;
 import org.junit.jupiter.api.DisplayName;

@@ -1,7 +1,7 @@
 package com.couponpop.storeservice.domain.store.entity;
 
 import com.couponpop.storeservice.common.entity.BaseEntity;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;

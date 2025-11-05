@@ -1,7 +1,7 @@
 package com.couponpop.storeservice.domain.store.document;
 
 import com.couponpop.storeservice.domain.store.entity.Store;
-import com.couponpop.storeservice.domain.store.enums.StoreCategory;
+import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

@@ -1,8 +1,8 @@
 package com.couponpop.storeservice.domain.store.controller;
 
-import com.couponpop.storeservice.common.dto.couponevent.response.StoreOwnershipResponse;
-import com.couponpop.storeservice.common.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
-import com.couponpop.storeservice.common.dto.store.response.StoreResponse;
+import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnershipResponse;
+import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
 import com.couponpop.storeservice.common.response.ApiResponse;
 import com.couponpop.storeservice.domain.store.service.StoreInternalService;
 import lombok.RequiredArgsConstructor;
