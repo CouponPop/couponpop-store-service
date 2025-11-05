@@ -109,7 +109,7 @@ public class StoreInternalServiceImpl implements StoreInternalService {
         return StoreResponse.of(
                 store.getId(),
                 store.getName(),
-                StoreCategory.valueOf(store.getStoreCategory().name()),
+                store.getStoreCategory(),
                 store.getLatitude(),
                 store.getLongitude(),
                 store.getImageUrl()
