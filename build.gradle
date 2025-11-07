@@ -127,6 +127,9 @@ dependencies {
     // [Elasticsearch]
     implementation 'co.elastic.clients:elasticsearch-java'
 
+    // [Micrometer Prometheus Registry]
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
     // [Spatial/GIS]
     implementation 'org.hibernate.orm:hibernate-spatial:6.5.3.Final'
     implementation 'org.locationtech.jts:jts-core:1.19.0'
