@@ -53,5 +53,5 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     Stream<Store> streamAll();
 
     @Query("SELECT s FROM Store s WHERE s.dong IN :dongs")
-    List<Store> findByDongIn(List<String> dongs);
+    List<Store> findByDongIn(@Param("dongs") List<String> dongs);
 }

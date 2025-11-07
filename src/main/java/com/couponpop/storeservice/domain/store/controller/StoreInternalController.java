@@ -2,6 +2,8 @@ package com.couponpop.storeservice.domain.store.controller;
 
 import com.couponpop.couponpopcoremodule.dto.couponevent.response.StoreOwnershipResponse;
 import com.couponpop.couponpopcoremodule.dto.store.request.cursor.StoreCouponEventsStatisticsCursor;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreIdsByDongResponse;
+import com.couponpop.couponpopcoremodule.dto.store.response.StoreRegionInfoResponse;
 import com.couponpop.couponpopcoremodule.dto.store.response.StoreResponse;
 import com.couponpop.storeservice.common.response.ApiResponse;
 import com.couponpop.storeservice.domain.store.service.StoreInternalService;
@@ -69,6 +71,26 @@ public class StoreInternalController {
     public ResponseEntity<ApiResponse<List<StoreResponse>>> findAllByIds(@RequestBody List<Long> storeIds) {
 
         List<StoreResponse> response = storeInternalService.findAllByIds(storeIds);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 매장 ID 리스트로 매장 지역 정보 조회
+     */
+    @PostMapping("/regions")
+    public ResponseEntity<ApiResponse<List<StoreRegionInfoResponse>>> findRegionInfoByIds(@RequestBody List<Long> storeIds) {
+
+        List<StoreRegionInfoResponse> response = storeInternalService.findRegionInfoByIds(storeIds);
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 매장 dong 리스트로 매장 ID 리스트 조회
+     */
+    @PostMapping("/search")
+    public ResponseEntity<ApiResponse<List<StoreIdsByDongResponse>>> findStoreIdsByDongs(@RequestBody List<String> dongs) {
+
+        List<StoreIdsByDongResponse> response = storeInternalService.findStoreIdsByDongs(dongs);
         return ApiResponse.success(response);
     }
 }
