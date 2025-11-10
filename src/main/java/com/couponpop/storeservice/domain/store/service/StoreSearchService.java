@@ -16,6 +16,7 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -37,7 +38,7 @@ public class StoreSearchService {
      */
     public List<StoreResponse> searchStoresByName(String keyword) {
         try {
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .match(m -> m
                                     .field("name")
@@ -80,7 +81,7 @@ public class StoreSearchService {
 
             String trimmedKeyword = keyword.trim();
 
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .bool(b -> b
                                     // should 쿼리: 점수를 누적하여 관련도 계산
@@ -167,7 +168,7 @@ public class StoreSearchService {
             String trimmedKeyword = keyword.trim();
 
             // Prefix 기반 자동완성 쿼리
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .match(m -> m
                                     .field("name.autocomplete")
@@ -195,7 +196,7 @@ public class StoreSearchService {
      */
     public List<StoreMapResponse> searchStoresByLocation(double latitude, double longitude, double radiusKm) {
         try {
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .geoDistance(g -> g
                                     .field("location")
