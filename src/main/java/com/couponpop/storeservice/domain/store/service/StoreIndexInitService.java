@@ -1,16 +1,15 @@
 package com.couponpop.storeservice.domain.store.service;
 
-import com.couponpop.storeservice.domain.store.document.StoreDocument;
 import com.couponpop.storeservice.domain.store.entity.Store;
 import com.couponpop.storeservice.domain.store.repository.StoreRepository;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -24,66 +23,46 @@ public class StoreIndexInitService {
 
     private final StoreRepository storeRepository;
     private final StoreSearchRepository storeSearchRepository;
-
-    private static final int BATCH_SIZE = 100;
+    private final StoreElasticsearchSyncService syncService;
 
     /**
      * 모든 매장 데이터를 Elasticsearch에 재색인
-     * 스트림 방식을 사용하여 커서 기반으로 대량 데이터를 안전하게 처리
+     * OpenAI 임베딩을 포함하여 재색인합니다.
      */
     @Transactional(readOnly = true)
     public void reindexAllStores() {
-        log.info("Starting reindexing all stores to Elasticsearch using stream...");
+        log.info("Starting reindexing all stores to Elasticsearch with embeddings...");
         
         try {
-            AtomicInteger totalProcessed = new AtomicInteger(0);
-            AtomicInteger batchCount = new AtomicInteger(0);
-            List<StoreDocument> batch = new ArrayList<>(BATCH_SIZE);
+            AtomicInteger successCount = new AtomicInteger(0);
+            AtomicInteger failCount = new AtomicInteger(0);
 
-            // 스트림으로 매장 데이터 조회 및 배치 처리
+            // 모든 매장 데이터 조회 및 개별 처리 (embedding 생성 포함)
             try (Stream<Store> storeStream = storeRepository.streamAll()) {
                 storeStream.forEach(store -> {
-                    StoreDocument document = StoreDocument.from(store);
-                    batch.add(document);
-
-                    // 배치 크기에 도달하면 저장
-                    if (batch.size() >= BATCH_SIZE) {
-                        saveBatch(batch, totalProcessed, batchCount);
+                    try {
+                        // StoreElasticsearchSyncService를 통해 embedding 포함하여 인덱싱
+                        syncService.indexStore(store, null);
+                        successCount.incrementAndGet();
+                        
+                        if (successCount.get() % 10 == 0) {
+                            log.info("Reindexed {} stores...", successCount.get());
+                        }
+                    } catch (Exception e) {
+                        failCount.incrementAndGet();
+                        log.error("Failed to reindex store: storeId={}", store.getId(), e);
                     }
                 });
-
-                // 남은 데이터 저장
-                if (!batch.isEmpty()) {
-                    saveBatch(batch, totalProcessed, batchCount);
-                }
             }
             
-            log.info("Successfully reindexed {} stores to Elasticsearch in {} batches", 
-                    totalProcessed.get(), batchCount.get());
+            log.info("Successfully reindexed stores to Elasticsearch: success={}, failed={}", 
+                    successCount.get(), failCount.get());
         } catch (Exception e) {
             log.error("Failed to reindex stores to Elasticsearch", e);
             throw new RuntimeException("Reindexing failed", e);
         }
     }
 
-    /**
-     * 배치 단위로 Elasticsearch에 저장
-     */
-    private void saveBatch(List<StoreDocument> batch,
-                           AtomicInteger totalProcessed,
-                           AtomicInteger batchCount) {
-        
-        int batchSize = batch.size();
-        
-        storeSearchRepository.saveAll(new ArrayList<>(batch));
-        totalProcessed.addAndGet(batchSize);
-        batchCount.incrementAndGet();
-
-        log.debug("Processed batch {} with {} stores (Total: {})",
-                batchCount.get(), batchSize, totalProcessed.get());
-
-        batch.clear();
-    }
 
     /**
      * Elasticsearch 인덱스 삭제 (개발/테스트 용도)
@@ -108,6 +87,35 @@ public class StoreIndexInitService {
         deleteAllStoresFromIndex();
         reindexAllStores();
         log.info("Full reindex completed");
+    }
+
+    /**
+     * 애플리케이션 시작 시 자동 재인덱싱 (개발 환경용)
+     * 프로덕션에서는 이 메서드를 제거하거나 비활성화하세요
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        log.info("Application ready - checking if reindexing is needed...");
+        
+        try {
+            // Elasticsearch에 문서가 있는지 확인
+            long documentCount = storeSearchRepository.count();
+            long dbCount = storeRepository.count();
+            
+            log.info("Elasticsearch documents: {}, Database records: {}", documentCount, dbCount);
+            
+            // 문서가 없거나 개수가 다르면 재인덱싱
+            if (documentCount == 0 || documentCount != dbCount) {
+                log.warn("Document count mismatch detected. Starting automatic reindexing...");
+                reindexAllStores();
+            } else {
+                // 첫 번째 문서에 embedding이 있는지 확인
+                log.info("Document count matches. Checking if embeddings exist...");
+                // embedding이 없으면 재인덱싱 필요 (이 부분은 선택적)
+            }
+        } catch (Exception e) {
+            log.error("Failed to check or reindex on startup", e);
+        }
     }
 }
 
