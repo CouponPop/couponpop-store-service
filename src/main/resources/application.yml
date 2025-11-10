@@ -33,6 +33,14 @@ spring:
     elasticsearch:
       uris: ${ELASTICSEARCH_URI}
 
+openai:
+  api:
+    key: ${OPENAI_API_KEY}
+    url: https://api.openai.com/v1/embeddings
+  embedding:
+    model: text-embedding-3-small
+    dimension: 1536
+
 jwt:
   secret:
     key: ${JWT_SECRET_KEY}
