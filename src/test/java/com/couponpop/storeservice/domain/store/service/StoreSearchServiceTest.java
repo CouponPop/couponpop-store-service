@@ -6,6 +6,7 @@ import com.couponpop.storeservice.domain.store.dto.response.StoreResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSearchResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSuggestResponse;
 import com.couponpop.couponpopcoremodule.enums.StoreCategory;
+import com.couponpop.storeservice.external.openai.service.OpenAIEmbeddingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +28,7 @@ import static org.assertj.core.data.Offset.offset;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
@@ -37,6 +38,8 @@ class StoreSearchServiceTest {
     @Mock
     private ElasticsearchOperations elasticsearchOperations;
 
+    @Mock
+    private OpenAIEmbeddingService openAIEmbeddingService;
 
     @InjectMocks
     private StoreSearchService storeSearchService;
@@ -460,6 +463,64 @@ class StoreSearchServiceTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("하이브리드 검색 - 임베딩 생성 실패 시 키워드 검색으로 폴백")
+    void executeHybridSearch_EmbeddingFailure_FallbackToKeywordSearch() {
+        // given
+        String keyword = "카페";
+        List<StoreSearchResponse> fallbackResults = List.of(
+                new StoreSearchResponse(1L, "카페 모카", "서울시 마포구", "홍대동", StoreCategory.CAFE,
+                        "https://example.com/image.jpg", 37.56, 126.97, 1.0f)
+        );
+
+        StoreSearchService spyService = spy(storeSearchService);
+
+        doReturn(null).when(openAIEmbeddingService).generateEmbedding(keyword);
+        doReturn(fallbackResults).when(spyService).searchStoresWithRecommendation(keyword);
+
+        // when
+        List<StoreSearchResponse> result = spyService.executeHybridSearch(keyword);
+
+        // then
+        assertThat(result).isEqualTo(fallbackResults);
+        verify(spyService, times(1)).searchStoresWithRecommendation(keyword);
+        verifyNoInteractions(elasticsearchOperations);
+    }
+
+    @Test
+    @DisplayName("시맨틱 검색 - 임베딩 기반 검색 성공")
+    void executeSemanticSearch_Success() {
+        // given
+        String keyword = "디저트 카페";
+
+        StoreDocument document = createStoreDocument(
+                1L, 1L, "member", "스위트 카페", "02123456789",
+                "디저트 전문 카페", "1234567890", "서울시 강남구", "역삼동",
+                37.501, 127.002, "https://example.com/cafe.jpg",
+                StoreCategory.CAFE, "09:00", "22:00", "10:00", "23:00"
+        );
+
+        @SuppressWarnings("unchecked")
+        SearchHit<StoreDocument> hit = mock(SearchHit.class);
+        given(hit.getContent()).willReturn(document);
+        given(hit.getScore()).willReturn(7.5f);
+        SearchHits<StoreDocument> searchHits = createSearchHits(List.of(hit));
+
+        doReturn(List.of(0.1f, 0.2f, 0.3f)).when(openAIEmbeddingService).generateEmbedding(keyword);
+        given(elasticsearchOperations.search(any(Query.class), eq(StoreDocument.class)))
+                .willReturn(searchHits);
+
+        // when
+        List<StoreSearchResponse> result = storeSearchService.executeSemanticSearch(keyword);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).name()).isEqualTo("스위트 카페");
+        assertThat(result.get(0).score()).isEqualTo(7.5f);
+        verify(openAIEmbeddingService, times(1)).generateEmbedding(keyword);
+        verify(elasticsearchOperations, times(1)).search(any(Query.class), eq(StoreDocument.class));
     }
 }
 
