@@ -351,7 +351,7 @@ public class StoreSearchService {
             }
 
             // 2. 하이브리드 쿼리 구성 (BM25 + KNN using Function Score)
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .functionScore(fs -> fs
                                     // a. BM25 쿼리 (Keyword Search)
@@ -461,7 +461,7 @@ public class StoreSearchService {
             }
 
             // 2. Script Score 쿼리 구성 (순수 시맨틱 검색)
-            org.springframework.data.elasticsearch.core.query.Query query = NativeQuery.builder()
+            Query query = NativeQuery.builder()
                     .withQuery(q -> q
                             .scriptScore(ss -> ss
                                     // 모든 문서를 대상으로 검색
