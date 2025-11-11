@@ -9,11 +9,6 @@ spring:
   config:
     import: optional:aws-parameterstore:/couponpop/prod/store-service/
 
-# client:
-#   coupon-service:
-#     name: coupon-service
-#     url: http://notification.couponpop.internal:8080
-
 cloud:
   aws:
     region:
