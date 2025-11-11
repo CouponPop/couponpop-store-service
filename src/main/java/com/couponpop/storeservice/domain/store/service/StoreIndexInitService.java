@@ -27,7 +27,6 @@ public class StoreIndexInitService {
 
     /**
      * 모든 매장 데이터를 Elasticsearch에 재색인
-     * OpenAI 임베딩을 포함하여 재색인합니다.
      */
     @Transactional(readOnly = true)
     public void reindexAllStores() {
