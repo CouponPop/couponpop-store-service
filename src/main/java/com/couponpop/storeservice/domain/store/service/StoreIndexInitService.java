@@ -5,11 +5,11 @@ import com.couponpop.storeservice.domain.store.repository.StoreRepository;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -20,6 +20,8 @@ import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class StoreIndexInitService {
+
+    static final int REINDEX_BATCH_SIZE = 50;
 
     private final StoreRepository storeRepository;
     private final StoreSearchRepository storeSearchRepository;
@@ -38,20 +40,19 @@ public class StoreIndexInitService {
 
             // 모든 매장 데이터 조회 및 개별 처리 (embedding 생성 포함)
             try (Stream<Store> storeStream = storeRepository.streamAll()) {
+                List<Store> batch = new ArrayList<>(REINDEX_BATCH_SIZE);
                 storeStream.forEach(store -> {
-                    try {
-                        // StoreElasticsearchSyncService를 통해 embedding 포함하여 인덱싱
-                        syncService.indexStore(store, null);
-                        successCount.incrementAndGet();
-                        
-                        if (successCount.get() % 10 == 0) {
-                            log.info("Reindexed {} stores...", successCount.get());
-                        }
-                    } catch (Exception e) {
-                        failCount.incrementAndGet();
-                        log.error("Failed to reindex store: storeId={}", store.getId(), e);
+                    batch.add(store);
+                    if (batch.size() >= REINDEX_BATCH_SIZE) {
+                        processBatch(List.copyOf(batch), successCount, failCount);
+                        batch.clear();
                     }
                 });
+
+                if (!batch.isEmpty()) {
+                    processBatch(List.copyOf(batch), successCount, failCount);
+                    batch.clear();
+                }
             }
             
             if (failCount.get() > 0) {
@@ -94,32 +95,30 @@ public class StoreIndexInitService {
         log.info("Full reindex completed");
     }
 
-    /**
-     * 애플리케이션 시작 시 자동 재인덱싱 (개발 환경용)
-     * 프로덕션에서는 이 메서드를 제거하거나 비활성화하세요
-     */
-    @EventListener(ApplicationReadyEvent.class)
-    public void onApplicationReady() {
-        log.info("Application ready - checking if reindexing is needed...");
-        
+    private void processBatch(List<Store> stores,
+                              AtomicInteger successCount,
+                              AtomicInteger failCount) {
+        if (stores.isEmpty()) {
+            return;
+        }
+
         try {
-            // Elasticsearch에 문서가 있는지 확인
-            long documentCount = storeSearchRepository.count();
-            long dbCount = storeRepository.count();
-            
-            log.info("Elasticsearch documents: {}, Database records: {}", documentCount, dbCount);
-            
-            // 문서가 없거나 개수가 다르면 재인덱싱
-            if (documentCount == 0 || documentCount != dbCount) {
-                log.warn("Document count mismatch detected. Starting automatic reindexing...");
-                reindexAllStores();
-            } else {
-                // 첫 번째 문서에 embedding이 있는지 확인
-                log.info("Document count matches. Checking if embeddings exist...");
-                // embedding이 없으면 재인덱싱 필요 (이 부분은 선택적)
+            int processed = syncService.indexStoresBatch(stores);
+            successCount.addAndGet(processed);
+
+            int failedInBatch = stores.size() - processed;
+            if (failedInBatch > 0) {
+                failCount.addAndGet(failedInBatch);
+                log.warn("Batch indexing completed with partial failures: processed={}, expected={}",
+                        processed, stores.size());
+            }
+
+            if (successCount.get() > 0 && successCount.get() % REINDEX_BATCH_SIZE == 0) {
+                log.info("Reindexed {} stores...", successCount.get());
             }
         } catch (Exception e) {
-            log.error("Failed to check or reindex on startup", e);
+            failCount.addAndGet(stores.size());
+            log.error("Failed to reindex batch of stores: batchSize={}", stores.size(), e);
         }
     }
 }

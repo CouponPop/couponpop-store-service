@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -66,6 +67,49 @@ public class StoreElasticsearchSyncService {
                     store.getId(), embedding != null ? embedding.size() : 0);
         } catch (Exception e) {
             log.error("Failed to update store in Elasticsearch: storeId={}", store.getId(), e);
+        }
+    }
+
+    /**
+     * 매장 데이터 배치를 한 번의 OpenAI API 호출로 인덱싱
+     *
+     * @param stores 배치로 처리할 매장 목록
+     * @return 성공적으로 저장된 문서 수
+     */
+    public int indexStoresBatch(List<Store> stores) {
+        if (stores == null || stores.isEmpty()) {
+            log.debug("No stores provided for batch indexing");
+            return 0;
+        }
+
+        try {
+            List<String> combinedTexts = stores.stream()
+                    .map(this::buildCombinedText)
+                    .toList();
+
+            List<List<Float>> embeddings = openAIEmbeddingService.generateEmbeddings(combinedTexts);
+            int embeddingCount = embeddings != null ? embeddings.size() : 0;
+
+            if (embeddingCount != stores.size()) {
+                log.warn("Embedding count ({}) does not match store count ({}). Missing embeddings will be stored as null.",
+                        embeddingCount, stores.size());
+            }
+
+            List<StoreDocument> documents = new ArrayList<>(stores.size());
+            for (int i = 0; i < stores.size(); i++) {
+                List<Float> embedding = (embeddings != null && embeddings.size() > i) ? embeddings.get(i) : null;
+                documents.add(StoreDocument.from(stores.get(i), null, embedding));
+            }
+
+            storeSearchRepository.saveAll(documents);
+
+            log.info("Successfully indexed store batch to Elasticsearch: batchSize={}, saved={}", 
+                    stores.size(), documents.size());
+
+            return documents.size();
+        } catch (Exception e) {
+            log.error("Failed to index store batch to Elasticsearch: batchSize={}", stores.size(), e);
+            throw new RuntimeException("Batch indexing failed", e);
         }
     }
 
