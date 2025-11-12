@@ -29,6 +29,18 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StoreSearchService {
 
+    private static final float RECOMMENDATION_BOOST_EXACT_MATCH = 10.0f;
+    private static final float RECOMMENDATION_BOOST_AUTOCOMPLETE = 5.0f;
+    private static final float RECOMMENDATION_BOOST_NGRAM = 3.0f;
+    private static final float RECOMMENDATION_BOOST_NAME_MATCH = 2.0f;
+    private static final float RECOMMENDATION_BOOST_NAME_FUZZY = 1.0f;
+
+    private static final float HYBRID_BOOST_NAME_MATCH = 3.0f;
+    private static final float HYBRID_BOOST_NAME_NGRAM = 2.0f;
+    private static final float HYBRID_BOOST_DESCRIPTION = 1.0f;
+    private static final float HYBRID_BOOST_ADDRESS = 1.5f;
+    private static final double HYBRID_VECTOR_SCORE_WEIGHT = 5.0;
+
     private final ElasticsearchOperations elasticsearchOperations;
     private final OpenAIEmbeddingService openAIEmbeddingService;
 
@@ -90,7 +102,7 @@ public class StoreSearchService {
                                             .term(t -> t
                                                     .field("name.keyword")
                                                     .value(trimmedKeyword)
-                                                    .boost(10.0f)
+                                                            .boost(RECOMMENDATION_BOOST_EXACT_MATCH)
                                             )
                                     )
                                     .should(s -> s
@@ -98,7 +110,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name.autocomplete")
                                                     .query(trimmedKeyword)
-                                                    .boost(5.0f)
+                                                    .boost(RECOMMENDATION_BOOST_AUTOCOMPLETE)
                                             )
                                     )
                                     .should(s -> s
@@ -106,7 +118,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name.ngram")
                                                     .query(trimmedKeyword)
-                                                    .boost(3.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NGRAM)
                                             )
                                     )
                                     .should(s -> s
@@ -114,7 +126,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name")
                                                     .query(trimmedKeyword)
-                                                    .boost(2.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NAME_MATCH)
                                             )
                                     )
                                     .should(s -> s
@@ -124,7 +136,7 @@ public class StoreSearchService {
                                                     .query(trimmedKeyword)
                                                     .fuzziness("AUTO")
                                                     .prefixLength(1)
-                                                    .boost(1.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NAME_FUZZY)
                                             )
                                     )
                                     // 최소 1개 이상의 조건이 매칭되어야 함
@@ -361,28 +373,28 @@ public class StoreSearchService {
                                                             .match(m -> m
                                                                     .field("name")
                                                                     .query(trimmedKeyword)
-                                                                    .boost(3.0f)
+                                                                    .boost(HYBRID_BOOST_NAME_MATCH)
                                                             )
                                                     )
                                                     .should(sh -> sh
                                                             .match(m -> m
                                                                     .field("name.ngram")
                                                                     .query(trimmedKeyword)
-                                                                    .boost(2.0f)
+                                                                    .boost(HYBRID_BOOST_NAME_NGRAM)
                                                             )
                                                     )
                                                     .should(sh -> sh
                                                             .match(m -> m
                                                                     .field("description")
                                                                     .query(trimmedKeyword)
-                                                                    .boost(1.0f)
+                                                                    .boost(HYBRID_BOOST_DESCRIPTION)
                                                             )
                                                     )
                                                     .should(sh -> sh
                                                             .match(m -> m
                                                                     .field("address")
                                                                     .query(trimmedKeyword)
-                                                                    .boost(1.5f)
+                                                                    .boost(HYBRID_BOOST_ADDRESS)
                                                             )
                                                     )
                                                     .minimumShouldMatch("1")
@@ -398,7 +410,7 @@ public class StoreSearchService {
                                                     )
                                             )
                                             // 벡터 유사도 점수에 가중치를 부여하여 BM25 점수와 합산
-                                            .weight(5.0)
+                                            .weight(HYBRID_VECTOR_SCORE_WEIGHT)
                                     )
                                     // BM25 점수와 벡터 점수를 합산
                                     .scoreMode(FunctionScoreMode.Sum)
