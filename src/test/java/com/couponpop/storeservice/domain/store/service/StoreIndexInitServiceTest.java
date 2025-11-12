@@ -19,10 +19,13 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("StoreIndexInitService 테스트")
@@ -33,6 +36,9 @@ class StoreIndexInitServiceTest {
 
     @Mock
     private StoreSearchRepository storeSearchRepository;
+
+    @Mock
+    private StoreElasticsearchSyncService syncService;
 
     @InjectMocks
     private StoreIndexInitService storeIndexInitService;
@@ -49,14 +55,12 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
         // when
         storeIndexInitService.reindexAllStores();
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(stores.size())).indexStore(any(Store.class), isNull());
     }
 
     @Test
@@ -70,7 +74,7 @@ class StoreIndexInitServiceTest {
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(0)).saveAll(anyList());
+        verifyNoInteractions(syncService);
     }
 
     @Test
@@ -81,7 +85,8 @@ class StoreIndexInitServiceTest {
         List<Store> stores = Arrays.asList(createStore(memberId, 1L, "스타벅스 홍대점"));
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willThrow(new RuntimeException("Elasticsearch error"));
+        doThrow(new RuntimeException("Elasticsearch error"))
+                .when(syncService).indexStore(any(Store.class), isNull());
 
         // when & then
         assertThatThrownBy(() -> storeIndexInitService.reindexAllStores())
@@ -89,7 +94,7 @@ class StoreIndexInitServiceTest {
                 .hasMessageContaining("Reindexing failed");
 
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(1)).indexStore(any(Store.class), isNull());
     }
 
     @Test
@@ -106,7 +111,7 @@ class StoreIndexInitServiceTest {
     @DisplayName("인덱스에서 전체 매장 삭제 - 오류 발생 시 예외 전파")
     void deleteAllStoresFromIndex_Error_ThrowsException() {
         // given
-        org.mockito.Mockito.doThrow(new RuntimeException("Elasticsearch error"))
+        doThrow(new RuntimeException("Elasticsearch error"))
                 .when(storeSearchRepository).deleteAll();
 
         // when & then
@@ -128,15 +133,13 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
         // when
         storeIndexInitService.fullReindex();
 
         // then
         then(storeSearchRepository).should(times(1)).deleteAll();
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(stores.size())).indexStore(any(Store.class), isNull());
     }
 
     @Test
@@ -151,15 +154,13 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
         // when
         storeIndexInitService.fullReindex();
 
         // then
         then(storeSearchRepository).should(times(1)).deleteAll();
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(stores.size())).indexStore(any(Store.class), isNull());
     }
 
     @Test
@@ -183,14 +184,12 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
         // when
         storeIndexInitService.reindexAllStores();
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(stores.size())).indexStore(any(Store.class), isNull());
     }
 
     private Store createStore(Long memberId, Long storeId, String name) {
