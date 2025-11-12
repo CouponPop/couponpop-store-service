@@ -54,7 +54,13 @@ public class StoreIndexInitService {
                 });
             }
             
-            log.info("Successfully reindexed stores to Elasticsearch: success={}, failed={}", 
+            if (failCount.get() > 0) {
+                log.error("Reindexing completed with failures: success={}, failed={}",
+                        successCount.get(), failCount.get());
+                throw new RuntimeException("Reindexing failed: " + failCount.get() + " store(s) failed");
+            }
+
+            log.info("Successfully reindexed stores to Elasticsearch: success={}, failed={}",
                     successCount.get(), failCount.get());
         } catch (Exception e) {
             log.error("Failed to reindex stores to Elasticsearch", e);
