@@ -97,7 +97,7 @@ public class StoreDocument {
     @Field(type = FieldType.Dense_Vector, dims = 1536)
     private List<Float> embedding;
 
-    @Builder
+    @Builder(access = AccessLevel.PRIVATE)
     private StoreDocument(String id,
                           Long storeId,
                           Long memberId,
