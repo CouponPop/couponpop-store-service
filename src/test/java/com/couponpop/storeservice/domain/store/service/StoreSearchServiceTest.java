@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
@@ -31,7 +33,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("StoreSearchService 테스트")
 class StoreSearchServiceTest {
 
@@ -295,7 +297,7 @@ class StoreSearchServiceTest {
                                               double lat, double lon, String imageUrl,
                                               StoreCategory category, String weekdayOpen,
                                               String weekdayClose, String weekendOpen, String weekendClose) {
-        StoreDocument document = mock(StoreDocument.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        StoreDocument document = mock(StoreDocument.class, RETURNS_DEEP_STUBS);
         GeoPoint location = new GeoPoint(lat, lon);
         
         // 필요한 메서드만 stub
