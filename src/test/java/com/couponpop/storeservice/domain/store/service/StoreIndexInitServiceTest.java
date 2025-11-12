@@ -16,13 +16,17 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("StoreIndexInitService 테스트")
@@ -33,6 +37,9 @@ class StoreIndexInitServiceTest {
 
     @Mock
     private StoreSearchRepository storeSearchRepository;
+
+    @Mock
+    private StoreElasticsearchSyncService syncService;
 
     @InjectMocks
     private StoreIndexInitService storeIndexInitService;
@@ -49,14 +56,13 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
+        given(syncService.indexStoresBatch(anyList())).willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         // when
         storeIndexInitService.reindexAllStores();
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(1)).indexStoresBatch(anyList());
     }
 
     @Test
@@ -70,7 +76,7 @@ class StoreIndexInitServiceTest {
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(0)).saveAll(anyList());
+        verifyNoInteractions(syncService);
     }
 
     @Test
@@ -81,7 +87,8 @@ class StoreIndexInitServiceTest {
         List<Store> stores = Arrays.asList(createStore(memberId, 1L, "스타벅스 홍대점"));
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willThrow(new RuntimeException("Elasticsearch error"));
+        doThrow(new RuntimeException("Elasticsearch error"))
+                .when(syncService).indexStoresBatch(anyList());
 
         // when & then
         assertThatThrownBy(() -> storeIndexInitService.reindexAllStores())
@@ -89,7 +96,30 @@ class StoreIndexInitServiceTest {
                 .hasMessageContaining("Reindexing failed");
 
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(1)).indexStoresBatch(anyList());
+    }
+
+    @Test
+    @DisplayName("전체 매장 재색인 - 일부 문서 저장 실패 시 예외 전파")
+    void reindexAllStores_PartialFailure_ThrowsException() {
+        // given
+        Long memberId = 1L;
+        List<Store> stores = Arrays.asList(
+                createStore(memberId, 1L, "스타벅스 홍대점"),
+                createStore(memberId, 2L, "카페베네"),
+                createStore(memberId, 3L, "투썸플레이스")
+        );
+
+        given(storeRepository.streamAll()).willReturn(stores.stream());
+        given(syncService.indexStoresBatch(anyList())).willReturn(stores.size() - 1);
+
+        // when & then
+        assertThatThrownBy(() -> storeIndexInitService.reindexAllStores())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Reindexing failed");
+
+        then(storeRepository).should(times(1)).streamAll();
+        then(syncService).should(times(1)).indexStoresBatch(anyList());
     }
 
     @Test
@@ -106,7 +136,7 @@ class StoreIndexInitServiceTest {
     @DisplayName("인덱스에서 전체 매장 삭제 - 오류 발생 시 예외 전파")
     void deleteAllStoresFromIndex_Error_ThrowsException() {
         // given
-        org.mockito.Mockito.doThrow(new RuntimeException("Elasticsearch error"))
+        doThrow(new RuntimeException("Elasticsearch error"))
                 .when(storeSearchRepository).deleteAll();
 
         // when & then
@@ -128,15 +158,14 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
+        given(syncService.indexStoresBatch(anyList())).willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         // when
         storeIndexInitService.fullReindex();
 
         // then
         then(storeSearchRepository).should(times(1)).deleteAll();
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(1)).indexStoresBatch(anyList());
     }
 
     @Test
@@ -151,15 +180,14 @@ class StoreIndexInitServiceTest {
         );
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
+        given(syncService.indexStoresBatch(anyList())).willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         // when
         storeIndexInitService.fullReindex();
 
         // then
         then(storeSearchRepository).should(times(1)).deleteAll();
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        then(syncService).should(times(1)).indexStoresBatch(anyList());
     }
 
     @Test
@@ -168,29 +196,20 @@ class StoreIndexInitServiceTest {
         // given
         Long memberId = 1L;
 
-        // 150개의 매장 데이터 생성 (100개 배치 + 50개 배치)
-        List<Store> stores = Arrays.asList(
-                createStore(memberId, 1L, "매장1"),
-                createStore(memberId, 2L, "매장2"),
-                createStore(memberId, 3L, "매장3"),
-                createStore(memberId, 4L, "매장4"),
-                createStore(memberId, 5L, "매장5"),
-                createStore(memberId, 6L, "매장6"),
-                createStore(memberId, 7L, "매장7"),
-                createStore(memberId, 8L, "매장8"),
-                createStore(memberId, 9L, "매장9"),
-                createStore(memberId, 10L, "매장10")
-        );
+        // 120개의 매장 데이터 생성 (50개 + 50개 + 20개 배치)
+        List<Store> stores = IntStream.rangeClosed(1, 120)
+                .mapToObj(i -> createStore(memberId, (long) i, "매장" + i))
+                .collect(Collectors.toList());
 
         given(storeRepository.streamAll()).willReturn(stores.stream());
-        given(storeSearchRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
-
+        given(syncService.indexStoresBatch(anyList())).willAnswer(invocation -> ((List<?>) invocation.getArgument(0)).size());
         // when
         storeIndexInitService.reindexAllStores();
 
         // then
         then(storeRepository).should(times(1)).streamAll();
-        then(storeSearchRepository).should(times(1)).saveAll(anyList());
+        int expectedBatchCalls = (int) Math.ceil((double) stores.size() / StoreIndexInitService.REINDEX_BATCH_SIZE);
+        then(syncService).should(times(expectedBatchCalls)).indexStoresBatch(anyList());
     }
 
     private Store createStore(Long memberId, Long storeId, String name) {

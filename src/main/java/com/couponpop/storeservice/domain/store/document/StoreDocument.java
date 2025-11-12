@@ -11,6 +11,7 @@ import org.springframework.data.elasticsearch.annotations.*;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Document(indexName = "stores")
 @Setting(
@@ -89,6 +90,13 @@ public class StoreDocument {
     @Field(type = FieldType.Date, name = "updated_at", format = {}, pattern = "uuuu-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime updatedAt;
 
+    /**
+     * OpenAI 임베딩 벡터 (1536 차원)
+     * 시맨틱 검색(Semantic Search)에 사용됨
+     */
+    @Field(type = FieldType.Dense_Vector, dims = 1536)
+    private List<Float> embedding;
+
     @Builder(access = AccessLevel.PRIVATE)
     private StoreDocument(String id,
                           Long storeId,
@@ -108,7 +116,8 @@ public class StoreDocument {
                           String weekendOpenTime,
                           String weekendCloseTime,
                           LocalDateTime createdAt,
-                          LocalDateTime updatedAt) {
+                          LocalDateTime updatedAt,
+                          List<Float> embedding) {
         this.id = id;
         this.storeId = storeId;
         this.memberId = memberId;
@@ -128,13 +137,26 @@ public class StoreDocument {
         this.weekendCloseTime = weekendCloseTime;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.embedding = embedding;
     }
 
     public static StoreDocument from(Store store) {
-        return from(store, null);
+        return from(store, null, null);
     }
 
     public static StoreDocument from(Store store, String memberUsername) {
+        return from(store, memberUsername, null);
+    }
+
+    /**
+     * Store 엔티티로부터 StoreDocument 생성 (embedding 포함)
+     * 
+     * @param store Store 엔티티
+     * @param memberUsername 회원 사용자명 (선택)
+     * @param embedding OpenAI 임베딩 벡터 (선택, 1536차원)
+     * @return StoreDocument
+     */
+    public static StoreDocument from(Store store, String memberUsername, List<Float> embedding) {
         return StoreDocument.builder()
                 .id(String.valueOf(store.getId())) // Elasticsearch 문서 ID를 storeId로 설정하여 업데이트 시 덮어쓰기 가능
                 .storeId(store.getId())
@@ -155,6 +177,7 @@ public class StoreDocument {
                 .weekendCloseTime(store.getWeekendCloseTime() != null ? store.getWeekendCloseTime().toString() : null)
                 .createdAt(store.getCreatedAt())
                 .updatedAt(store.getUpdatedAt())
+                .embedding(embedding)  // 임베딩 벡터 추가
                 .build();
     }
 }

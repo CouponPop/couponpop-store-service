@@ -131,6 +131,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     // [CouponPop Module]
     implementation 'com.couponpop:couponpop-security:0.0.3-SNAPSHOT'
