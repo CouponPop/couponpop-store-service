@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
@@ -152,7 +153,7 @@ class StoreElasticsearchSyncServiceTest {
     void deleteStore_ExceptionDoesNotPropagate() {
         // given
         Long storeId = 1L;
-        org.mockito.Mockito.doThrow(new RuntimeException("Elasticsearch error"))
+        doThrow(new RuntimeException("Elasticsearch error"))
                 .when(storeSearchRepository).deleteByStoreId(storeId);
 
         // when & then
