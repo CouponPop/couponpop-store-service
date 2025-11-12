@@ -5,6 +5,7 @@ import com.couponpop.storeservice.domain.store.entity.Store;
 import com.couponpop.couponpopcoremodule.enums.StoreCategory;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import com.couponpop.storeservice.utils.TestUtils;
+import com.couponpop.storeservice.external.openai.service.OpenAIEmbeddingService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,10 +14,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalTime;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.times;
@@ -28,8 +31,16 @@ class StoreElasticsearchSyncServiceTest {
     @Mock
     private StoreSearchRepository storeSearchRepository;
 
+    @Mock
+    private OpenAIEmbeddingService openAIEmbeddingService;
+
     @InjectMocks
     private StoreElasticsearchSyncService elasticsearchSyncService;
+
+    private void mockEmbeddingGeneration() {
+        given(openAIEmbeddingService.generateEmbedding(anyString()))
+                .willReturn(Collections.singletonList(0.1f));
+    }
 
     @Test
     @DisplayName("매장 생성 시 Elasticsearch에 인덱싱 성공")
@@ -38,6 +49,7 @@ class StoreElasticsearchSyncServiceTest {
         Long memberId = 1L;
         String memberUsername = "testuser";
         Store store = createStore(memberId);
+        mockEmbeddingGeneration();
 
         StoreDocument document = StoreDocument.from(store);
         given(storeSearchRepository.save(any(StoreDocument.class))).willReturn(document);
@@ -56,6 +68,7 @@ class StoreElasticsearchSyncServiceTest {
         Long memberId = 1L;
         String memberUsername = "testuser";
         Store store = createStore(memberId);
+        mockEmbeddingGeneration();
 
         given(storeSearchRepository.save(any(StoreDocument.class)))
                 .willThrow(new RuntimeException("Elasticsearch error"));
@@ -74,6 +87,7 @@ class StoreElasticsearchSyncServiceTest {
         Long memberId = 1L;
         String memberUsername = "testuser";
         Store store = createStore(memberId);
+        mockEmbeddingGeneration();
         store.updateStoreInfo(
                 "스타벅스 홍대점 (수정)",
                 "02123456789",
@@ -108,6 +122,7 @@ class StoreElasticsearchSyncServiceTest {
         Long memberId = 1L;
         String memberUsername = "testuser";
         Store store = createStore(memberId);
+        mockEmbeddingGeneration();
 
         given(storeSearchRepository.save(any(StoreDocument.class)))
                 .willThrow(new RuntimeException("Elasticsearch error"));
@@ -153,6 +168,7 @@ class StoreElasticsearchSyncServiceTest {
         // given
         Long memberId = 1L;
         String memberUsername = "testuser";
+        mockEmbeddingGeneration();
         
         Store cafeStore = createStoreWithCategory(memberId, StoreCategory.CAFE);
         Store foodStore = createStoreWithCategory(memberId, StoreCategory.FOOD);
