@@ -2,11 +2,14 @@ package com.couponpop.storeservice.domain.store.service;
 
 import co.elastic.clients.elasticsearch._types.DistanceUnit;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.FunctionScoreMode;
+import co.elastic.clients.json.JsonData;
 import com.couponpop.storeservice.domain.store.document.StoreDocument;
 import com.couponpop.storeservice.domain.store.dto.response.StoreMapResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSearchResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSuggestResponse;
+import com.couponpop.storeservice.external.openai.service.OpenAIEmbeddingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
@@ -26,7 +29,20 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StoreSearchService {
 
+    private static final float RECOMMENDATION_BOOST_EXACT_MATCH = 10.0f;
+    private static final float RECOMMENDATION_BOOST_AUTOCOMPLETE = 5.0f;
+    private static final float RECOMMENDATION_BOOST_NGRAM = 3.0f;
+    private static final float RECOMMENDATION_BOOST_NAME_MATCH = 2.0f;
+    private static final float RECOMMENDATION_BOOST_NAME_FUZZY = 1.0f;
+
+    private static final float HYBRID_BOOST_NAME_MATCH = 3.0f;
+    private static final float HYBRID_BOOST_NAME_NGRAM = 2.0f;
+    private static final float HYBRID_BOOST_DESCRIPTION = 1.0f;
+    private static final float HYBRID_BOOST_ADDRESS = 1.5f;
+    private static final double HYBRID_VECTOR_SCORE_WEIGHT = 5.0;
+
     private final ElasticsearchOperations elasticsearchOperations;
+    private final OpenAIEmbeddingService openAIEmbeddingService;
 
     /**
      * 매장명으로 검색 (name 필드만 검색)
@@ -86,7 +102,7 @@ public class StoreSearchService {
                                             .term(t -> t
                                                     .field("name.keyword")
                                                     .value(trimmedKeyword)
-                                                    .boost(10.0f)
+                                                            .boost(RECOMMENDATION_BOOST_EXACT_MATCH)
                                             )
                                     )
                                     .should(s -> s
@@ -94,7 +110,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name.autocomplete")
                                                     .query(trimmedKeyword)
-                                                    .boost(5.0f)
+                                                    .boost(RECOMMENDATION_BOOST_AUTOCOMPLETE)
                                             )
                                     )
                                     .should(s -> s
@@ -102,7 +118,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name.ngram")
                                                     .query(trimmedKeyword)
-                                                    .boost(3.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NGRAM)
                                             )
                                     )
                                     .should(s -> s
@@ -110,7 +126,7 @@ public class StoreSearchService {
                                             .match(m -> m
                                                     .field("name")
                                                     .query(trimmedKeyword)
-                                                    .boost(2.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NAME_MATCH)
                                             )
                                     )
                                     .should(s -> s
@@ -120,7 +136,7 @@ public class StoreSearchService {
                                                     .query(trimmedKeyword)
                                                     .fuzziness("AUTO")
                                                     .prefixLength(1)
-                                                    .boost(1.0f)
+                                                    .boost(RECOMMENDATION_BOOST_NAME_FUZZY)
                                             )
                                     )
                                     // 최소 1개 이상의 조건이 매칭되어야 함
@@ -316,5 +332,184 @@ public class StoreSearchService {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         
         return EARTH_RADIUS * c;
+    }
+
+    /**
+     * 하이브리드 검색 (BM25 + KNN with Function Score) - Basic License 호환
+     * 
+     * BM25 키워드 검색과 시맨틱 벡터 검색을 Function Score 쿼리로 결합하여
+     * 더 정확하고 의미론적인 검색 결과를 제공합니다.
+     * 
+     * Basic License에서도 작동하며, Script Score를 사용하여 벡터 유사도를 계산합니다.
+     * 
+     * @param keyword 검색 키워드
+     * @return 하이브리드 검색 결과 (점수 포함)
+     */
+    public List<StoreSearchResponse> executeHybridSearch(String keyword) {
+        try {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return List.of();
+            }
+
+            String trimmedKeyword = keyword.trim();
+            log.info("Executing hybrid search (Function Score) for keyword: {}", trimmedKeyword);
+
+            // 1. 검색어를 임베딩 벡터로 변환
+            List<Float> queryEmbedding = openAIEmbeddingService.generateEmbedding(trimmedKeyword);
+            
+            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+                log.warn("Failed to generate embedding for keyword: {}, falling back to BM25 only", trimmedKeyword);
+                return searchStoresWithRecommendation(trimmedKeyword);
+            }
+
+            // 2. 하이브리드 쿼리 구성 (BM25 + KNN using Function Score)
+            Query query = NativeQuery.builder()
+                    .withQuery(q -> q
+                            .functionScore(fs -> fs
+                                    // a. BM25 쿼리 (Keyword Search)
+                                    .query(qq -> qq
+                                            .bool(b -> b
+                                                    .should(sh -> sh
+                                                            .match(m -> m
+                                                                    .field("name")
+                                                                    .query(trimmedKeyword)
+                                                                    .boost(HYBRID_BOOST_NAME_MATCH)
+                                                            )
+                                                    )
+                                                    .should(sh -> sh
+                                                            .match(m -> m
+                                                                    .field("name.ngram")
+                                                                    .query(trimmedKeyword)
+                                                                    .boost(HYBRID_BOOST_NAME_NGRAM)
+                                                            )
+                                                    )
+                                                    .should(sh -> sh
+                                                            .match(m -> m
+                                                                    .field("description")
+                                                                    .query(trimmedKeyword)
+                                                                    .boost(HYBRID_BOOST_DESCRIPTION)
+                                                            )
+                                                    )
+                                                    .should(sh -> sh
+                                                            .match(m -> m
+                                                                    .field("address")
+                                                                    .query(trimmedKeyword)
+                                                                    .boost(HYBRID_BOOST_ADDRESS)
+                                                            )
+                                                    )
+                                                    .minimumShouldMatch("1")
+                                            )
+                                    )
+                                    // b. 벡터 검색 (Semantic Search)를 Score Function으로 추가
+                                    .functions(fn -> fn
+                                            .scriptScore(ss -> ss
+                                                    .script(s -> s
+                                                            // 코사인 유사도 계산 (+1.0은 점수를 양수로 만듦)
+                                                            .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                                            .params("queryVector", JsonData.of(queryEmbedding))
+                                                    )
+                                            )
+                                            // 벡터 유사도 점수에 가중치를 부여하여 BM25 점수와 합산
+                                            .weight(HYBRID_VECTOR_SCORE_WEIGHT)
+                                    )
+                                    // BM25 점수와 벡터 점수를 합산
+                                    .scoreMode(FunctionScoreMode.Sum)
+                            )
+                    )
+                    .withMaxResults(20)
+                    .build();
+
+            // 3. 검색 실행 (ElasticsearchOperations 사용)
+            SearchHits<StoreDocument> searchHits = elasticsearchOperations.search(query, StoreDocument.class);
+
+            log.info("Hybrid search (Function Score) completed: keyword={}, totalHits={}", 
+                    trimmedKeyword, searchHits.getTotalHits());
+
+            // 4. 결과 변환 및 반환
+            return searchHits.stream()
+                    .map(hit -> {
+                        float score = 0.0f;
+                        try {
+                            score = hit.getScore();
+                        } catch (Exception e) {
+                            log.debug("Failed to get score for hit", e);
+                        }
+                        return StoreSearchResponse.of(hit.getContent(), score);
+                    })
+                    .toList();
+
+        } catch (Exception e) {
+            log.error("Failed to execute hybrid search (Function Score): keyword={}", keyword, e);
+            // 에러 발생 시 기존 BM25 검색으로 폴백
+            log.info("Falling back to BM25 search due to error");
+            return searchStoresWithRecommendation(keyword);
+        }
+    }
+
+    /**
+     * 순수 시맨틱 검색 (Script Score 사용) - Basic License 호환
+     * 
+     * 벡터 유사도만을 사용한 순수 시맨틱 검색입니다.
+     * 의미적으로 유사한 매장을 찾을 때 유용합니다.
+     * 
+     * @param keyword 검색 키워드
+     * @return 시맨틱 검색 결과 (점수 포함)
+     */
+    public List<StoreSearchResponse> executeSemanticSearch(String keyword) {
+        try {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return List.of();
+            }
+
+            String trimmedKeyword = keyword.trim();
+            log.info("Executing semantic search (Script Score) for keyword: {}", trimmedKeyword);
+
+            // 1. 검색어를 임베딩 벡터로 변환
+            List<Float> queryEmbedding = openAIEmbeddingService.generateEmbedding(trimmedKeyword);
+            
+            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+                log.warn("Failed to generate embedding for keyword: {}", trimmedKeyword);
+                return List.of();
+            }
+
+            // 2. Script Score 쿼리 구성 (순수 시맨틱 검색)
+            Query query = NativeQuery.builder()
+                    .withQuery(q -> q
+                            .scriptScore(ss -> ss
+                                    // 모든 문서를 대상으로 검색
+                                    .query(qq -> qq.matchAll(ma -> ma))
+                                    .script(s -> s
+                                            // 코사인 유사도 계산
+                                            .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                            .params("queryVector", JsonData.of(queryEmbedding))
+                                    )
+                            )
+                    )
+                    .withMaxResults(20)
+                    .build();
+
+            // 3. 시맨틱 검색 실행
+            SearchHits<StoreDocument> searchHits = elasticsearchOperations.search(query, StoreDocument.class);
+
+            log.info("Semantic search (Script Score) completed: keyword={}, totalHits={}", 
+                    trimmedKeyword, searchHits.getTotalHits());
+
+            // 4. 결과 변환 및 반환
+            return searchHits.stream()
+                    .map(hit -> {
+                        float score = 0.0f;
+                        try {
+                            score = hit.getScore();
+                        } catch (Exception e) {
+                            log.debug("Failed to get score for hit", e);
+                        }
+                        return StoreSearchResponse.of(hit.getContent(), score);
+                    })
+                    .toList();
+
+        } catch (Exception e) {
+            log.error("Failed to execute semantic search (Script Score): keyword={}", keyword, e);
+            return List.of();
+        }
     }
 }
