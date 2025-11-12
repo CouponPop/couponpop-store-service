@@ -217,7 +217,6 @@ class StoreSearchServiceTest {
 
         // then
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).distance()).isNotNull();
         // 같은 좌표이므로 거리가 0에 가까움 (Haversine으로 계산된 값)
         assertThat(result.get(0).distance()).isCloseTo(0.0, offset(0.01));
     }
