@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/admin/stores/index")
+@RequestMapping("/api/v1/admin/stores/index")
 public class StoreIndexAdminController {
 
     private final StoreIndexInitService storeIndexInitService;
