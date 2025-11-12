@@ -5,6 +5,7 @@ import com.couponpop.storeservice.domain.store.repository.StoreRepository;
 import com.couponpop.storeservice.domain.store.repository.StoreSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +30,9 @@ public class StoreIndexInitService {
 
     /**
      * 모든 매장 데이터를 Elasticsearch에 재색인
+     * 비동기로 실행되어 HTTP 요청을 즉시 반환합니다.
      */
+    @Async
     @Transactional(readOnly = true)
     public void reindexAllStores() {
         log.info("Starting reindexing all stores to Elasticsearch with embeddings...");
@@ -86,7 +89,9 @@ public class StoreIndexInitService {
 
     /**
      * 전체 재색인 (기존 인덱스 삭제 후 재생성)
+     * 비동기로 실행되어 HTTP 요청을 즉시 반환합니다.
      */
+    @Async
     @Transactional(readOnly = true)
     public void fullReindex() {
         log.info("Starting full reindex (delete and recreate)...");
