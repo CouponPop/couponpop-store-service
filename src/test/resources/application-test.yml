@@ -42,6 +42,14 @@ spring:
   flyway:
     enabled: false
 
+openai:
+  api:
+    key: dummy-test-api-key
+    url: https://api.openai.com/v1/embeddings
+  embedding:
+    model: text-embedding-3-small
+    dimension: 1536
+
 jwt:
   secret:
     key: Y291cG9ucG9wLXRlc3QtanVuaW9yLWJhY2tlbmQtZGV2ZWxvcGVyLXNlY3JldC1rZXktZm9yLWNpLWNkCg==
