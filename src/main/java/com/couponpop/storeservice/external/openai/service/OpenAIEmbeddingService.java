@@ -1,5 +1,6 @@
 package com.couponpop.storeservice.external.openai.service;
 
+import com.couponpop.storeservice.external.openai.dto.EmbeddingData;
 import com.couponpop.storeservice.external.openai.dto.EmbeddingRequest;
 import com.couponpop.storeservice.external.openai.dto.EmbeddingResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,6 +18,8 @@ import java.util.List;
 @Slf4j
 @Service
 public class OpenAIEmbeddingService {
+
+    private static final String EMPTY_RESPONSE_LOG = "Empty response from OpenAI API";
 
     private final WebClient webClient;
     private final String model;
@@ -44,7 +48,7 @@ public class OpenAIEmbeddingService {
         try {
             if (text == null || text.trim().isEmpty()) {
                 log.warn("Empty text provided for embedding generation");
-                return null;
+                return Collections.emptyList();
             }
 
             log.debug("Generating embedding for text: {}", text.substring(0, Math.min(text.length(), 50)));
@@ -58,8 +62,8 @@ public class OpenAIEmbeddingService {
                     .block();
 
             if (response == null || response.data().isEmpty()) {
-                log.error("Empty response from OpenAI API");
-                return null;
+                log.error(EMPTY_RESPONSE_LOG);
+                return Collections.emptyList();
             }
 
             List<Float> embedding = response.data().get(0).embedding();
@@ -69,7 +73,7 @@ public class OpenAIEmbeddingService {
 
         } catch (Exception e) {
             log.error("Failed to generate embedding: text={}", text, e);
-            return null;
+            return Collections.emptyList();
         }
     }
 
@@ -97,12 +101,12 @@ public class OpenAIEmbeddingService {
                     .block();
 
             if (response == null || response.data().isEmpty()) {
-                log.error("Empty response from OpenAI API");
+                log.error(EMPTY_RESPONSE_LOG);
                 return List.of();
             }
 
             List<List<Float>> embeddings = response.data().stream()
-                    .map(data -> data.embedding())
+                    .map(EmbeddingData::embedding)
                     .toList();
 
             log.debug("Successfully generated {} embedding vectors", embeddings.size());
@@ -110,7 +114,7 @@ public class OpenAIEmbeddingService {
             return embeddings;
 
         } catch (Exception e) {
-            log.error("Failed to generate embeddings for {} texts", texts.size(), e);
+            log.error("Failed to generate embeddings for {} texts", texts != null ? texts.size() : 0, e);
             return List.of();
         }
     }
@@ -125,7 +129,7 @@ public class OpenAIEmbeddingService {
         try {
             if (text == null || text.trim().isEmpty()) {
                 log.warn("Empty text provided for embedding generation");
-                return Mono.empty();
+                return Mono.just(Collections.<Float>emptyList());
             }
 
             log.debug("Generating embedding asynchronously for text: {}", 
@@ -139,8 +143,8 @@ public class OpenAIEmbeddingService {
                     .bodyToMono(EmbeddingResponse.class)
                     .map(response -> {
                         if (response == null || response.data().isEmpty()) {
-                            log.error("Empty response from OpenAI API");
-                            return null;
+                            log.error(EMPTY_RESPONSE_LOG);
+                            return Collections.<Float>emptyList();
                         }
                         List<Float> embedding = response.data().get(0).embedding();
                         log.debug("Successfully generated embedding vector (dimension: {})", embedding.size());
@@ -148,12 +152,12 @@ public class OpenAIEmbeddingService {
                     })
                     .onErrorResume(e -> {
                         log.error("Failed to generate embedding asynchronously: text={}", text, e);
-                        return Mono.empty();
+                        return Mono.just(Collections.<Float>emptyList());
                     });
 
         } catch (Exception e) {
             log.error("Failed to generate embedding asynchronously: text={}", text, e);
-            return Mono.empty();
+            return Mono.just(Collections.<Float>emptyList());
         }
     }
 }
