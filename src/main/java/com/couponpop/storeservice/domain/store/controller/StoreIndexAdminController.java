@@ -83,7 +83,9 @@ public class StoreIndexAdminController {
 
     private void validateAdminRole(AuthMember authMember) {
 
-        if (!"ROLE_ADMIN".equals(authMember.role())) {
+        String memberType = authMember.memberType();
+
+        if (memberType == null || (!"ADMIN".equalsIgnoreCase(memberType) && !"ROLE_ADMIN".equalsIgnoreCase(memberType))) {
             throw new GlobalException(StoreErrorCode.ADMIN_PERMISSION_REQUIRED);
         }
     }
