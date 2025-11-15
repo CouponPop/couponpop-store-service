@@ -78,6 +78,7 @@ jwt:
       - /swagger-resources/**
       - /webjars/**
       - /docs/**
+      - /api/v1/stores/search/**
 
 logging:
   level:

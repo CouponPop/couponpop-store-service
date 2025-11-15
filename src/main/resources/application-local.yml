@@ -4,3 +4,14 @@ server:
 management:
   endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.show-details: always
+
+  metrics:
+    enable:
+      hikari: true
+    endpoints:
+      web:
+        exposure:
+          include: health,info,prometheus
+    endpoint:
+      health:
+        show-details: always
