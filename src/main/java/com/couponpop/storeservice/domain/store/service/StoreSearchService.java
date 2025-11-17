@@ -7,6 +7,7 @@ import co.elastic.clients.json.JsonData;
 import com.couponpop.storeservice.domain.store.document.StoreDocument;
 import com.couponpop.storeservice.domain.store.dto.response.StoreMapResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreResponse;
+import com.couponpop.storeservice.domain.store.dto.response.StoreSearchPageResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSearchResponse;
 import com.couponpop.storeservice.domain.store.dto.response.StoreSuggestResponse;
 import com.couponpop.storeservice.external.openai.service.OpenAIEmbeddingService;
@@ -510,6 +511,449 @@ public class StoreSearchService {
         } catch (Exception e) {
             log.error("Failed to execute semantic search (Script Score): keyword={}", keyword, e);
             return List.of();
+        }
+    }
+
+    /**
+     * 검색 추천 기능 (Keyset Pagination 지원)
+     * 매장명(name) 필드만 검색하며 자동완성과 관련도 점수 기반 정렬을 제공
+     * 
+     * @param keyword 검색 키워드
+     * @param cursor 이전 페이지의 마지막 storeId (null이면 첫 페이지)
+     * @param size 페이지 크기 (기본값: 20, 최대: 100)
+     * @return 페이지네이션된 검색 결과
+     */
+    public StoreSearchPageResponse searchStoresWithRecommendation(String keyword, Long cursor, Integer size) {
+        try {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                log.warn("Empty keyword provided for search");
+                return StoreSearchPageResponse.of(List.of(), size);
+            }
+
+            String trimmedKeyword = keyword.trim();
+            int pageSize = (size == null || size <= 0) ? 20 : Math.min(size, 100); // 최대 100개로 제한
+
+            log.info("Searching stores with recommendation: keyword={}, cursor={}, pageSize={}", 
+                    trimmedKeyword, cursor, pageSize);
+
+            // Keyset Pagination을 위한 쿼리 구성
+            Query query;
+            if (cursor != null && cursor > 0) {
+                // cursor가 있으면 storeId 필터 추가 (range 쿼리 사용)
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .bool(b -> b
+                                        .must(m -> m
+                                                .bool(bb -> bb
+                                                        .should(sh -> sh
+                                                                .term(t -> t
+                                                                        .field("name.keyword")
+                                                                        .value(trimmedKeyword)
+                                                                        .boost(RECOMMENDATION_BOOST_EXACT_MATCH)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(mm -> mm
+                                                                        .field("name.autocomplete")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(RECOMMENDATION_BOOST_AUTOCOMPLETE)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(mm -> mm
+                                                                        .field("name.ngram")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(RECOMMENDATION_BOOST_NGRAM)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(mm -> mm
+                                                                        .field("name")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(RECOMMENDATION_BOOST_NAME_MATCH)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(mm -> mm
+                                                                        .field("name")
+                                                                        .query(trimmedKeyword)
+                                                                        .fuzziness("AUTO")
+                                                                        .prefixLength(1)
+                                                                        .boost(RECOMMENDATION_BOOST_NAME_FUZZY)
+                                                                )
+                                                        )
+                                                        .minimumShouldMatch("1")
+                                                )
+                                        )
+                                        .must(m -> m
+                                                .script(s -> s
+                                                        .script(sc -> sc
+                                                                .source("doc['store_id'].size() > 0 && doc['store_id'].value > params.cursor")
+                                                                .params("cursor", JsonData.of(cursor))
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            } else {
+                // 첫 페이지 (cursor가 null이거나 0 이하)
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .bool(b -> b
+                                        .should(s -> s
+                                                .term(t -> t
+                                                        .field("name.keyword")
+                                                        .value(trimmedKeyword)
+                                                        .boost(RECOMMENDATION_BOOST_EXACT_MATCH)
+                                                )
+                                        )
+                                        .should(s -> s
+                                                .match(m -> m
+                                                        .field("name.autocomplete")
+                                                        .query(trimmedKeyword)
+                                                        .boost(RECOMMENDATION_BOOST_AUTOCOMPLETE)
+                                                )
+                                        )
+                                        .should(s -> s
+                                                .match(m -> m
+                                                        .field("name.ngram")
+                                                        .query(trimmedKeyword)
+                                                        .boost(RECOMMENDATION_BOOST_NGRAM)
+                                                )
+                                        )
+                                        .should(s -> s
+                                                .match(m -> m
+                                                        .field("name")
+                                                        .query(trimmedKeyword)
+                                                        .boost(RECOMMENDATION_BOOST_NAME_MATCH)
+                                                )
+                                        )
+                                        .should(s -> s
+                                                .match(m -> m
+                                                        .field("name")
+                                                        .query(trimmedKeyword)
+                                                        .fuzziness("AUTO")
+                                                        .prefixLength(1)
+                                                        .boost(RECOMMENDATION_BOOST_NAME_FUZZY)
+                                                )
+                                        )
+                                        .minimumShouldMatch("1")
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            }
+            
+            SearchHits<StoreDocument> searchHits = elasticsearchOperations.search(query, StoreDocument.class);
+            
+            log.info("Search completed: keyword={}, totalHits={}, cursor={}", 
+                    trimmedKeyword, searchHits.getTotalHits(), cursor);
+
+            List<StoreSearchResponse> results = searchHits.stream()
+                    .limit(pageSize) // 요청한 크기만큼만 반환
+                    .map(hit -> StoreSearchResponse.of(
+                            hit.getContent(),
+                            hit.getScore()
+                    ))
+                    .toList();
+
+            log.info("Returning {} results for keyword={}, cursor={}", results.size(), trimmedKeyword, cursor);
+
+            return StoreSearchPageResponse.of(results, pageSize);
+
+        } catch (Exception e) {
+            log.error("Failed to search stores with recommendation (paginated): keyword={}, cursor={}, size={}", 
+                    keyword, cursor, size, e);
+            return StoreSearchPageResponse.of(List.of(), size != null ? size : 20);
+        }
+    }
+
+    /**
+     * 하이브리드 검색 (Keyset Pagination 지원)
+     * BM25 키워드 검색과 시맨틱 벡터 검색을 결합
+     * 
+     * @param keyword 검색 키워드
+     * @param cursor 이전 페이지의 마지막 storeId (null이면 첫 페이지)
+     * @param size 페이지 크기 (기본값: 20, 최대: 100)
+     * @return 페이지네이션된 검색 결과
+     */
+    public StoreSearchPageResponse executeHybridSearch(String keyword, Long cursor, Integer size) {
+        try {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return StoreSearchPageResponse.of(List.of(), size);
+            }
+
+            String trimmedKeyword = keyword.trim();
+            int pageSize = (size == null || size <= 0) ? 20 : Math.min(size, 100);
+
+            log.info("Executing hybrid search (paginated) for keyword: {}, cursor: {}, size: {}", 
+                    trimmedKeyword, cursor, pageSize);
+
+            // 1. 검색어를 임베딩 벡터로 변환
+            List<Float> queryEmbedding = openAIEmbeddingService.generateEmbedding(trimmedKeyword);
+            
+            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+                log.warn("Failed to generate embedding for keyword: {}, falling back to BM25 only", trimmedKeyword);
+                return searchStoresWithRecommendation(trimmedKeyword, cursor, pageSize);
+            }
+
+            // 2. 하이브리드 쿼리 구성 (Keyset Pagination 지원)
+            Query query;
+            if (cursor != null) {
+                // cursor가 있으면 storeId 필터 추가
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .bool(b -> b
+                                        .must(m -> m
+                                                .functionScore(fs -> fs
+                                                        .query(qq -> qq
+                                                                .bool(bb -> bb
+                                                                        .should(sh -> sh
+                                                                                .match(mm -> mm
+                                                                                        .field("name")
+                                                                                        .query(trimmedKeyword)
+                                                                                        .boost(HYBRID_BOOST_NAME_MATCH)
+                                                                                )
+                                                                        )
+                                                                        .should(sh -> sh
+                                                                                .match(mm -> mm
+                                                                                        .field("name.ngram")
+                                                                                        .query(trimmedKeyword)
+                                                                                        .boost(HYBRID_BOOST_NAME_NGRAM)
+                                                                                )
+                                                                        )
+                                                                        .should(sh -> sh
+                                                                                .match(mm -> mm
+                                                                                        .field("description")
+                                                                                        .query(trimmedKeyword)
+                                                                                        .boost(HYBRID_BOOST_DESCRIPTION)
+                                                                                )
+                                                                        )
+                                                                        .should(sh -> sh
+                                                                                .match(mm -> mm
+                                                                                        .field("address")
+                                                                                        .query(trimmedKeyword)
+                                                                                        .boost(HYBRID_BOOST_ADDRESS)
+                                                                                )
+                                                                        )
+                                                                        .minimumShouldMatch("1")
+                                                                )
+                                                        )
+                                                        .functions(fn -> fn
+                                                                .scriptScore(ss -> ss
+                                                                        .script(s -> s
+                                                                                .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                                                                .params("queryVector", JsonData.of(queryEmbedding))
+                                                                        )
+                                                                )
+                                                                .weight(HYBRID_VECTOR_SCORE_WEIGHT)
+                                                        )
+                                                        .scoreMode(FunctionScoreMode.Sum)
+                                                )
+                                        )
+                                        .must(m -> m
+                                                .script(s -> s
+                                                        .script(sc -> sc
+                                                                .source("doc['store_id'].value > params.cursor")
+                                                                .params("cursor", JsonData.of(cursor))
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            } else {
+                // 첫 페이지
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .functionScore(fs -> fs
+                                        .query(qq -> qq
+                                                .bool(b -> b
+                                                        .should(sh -> sh
+                                                                .match(m -> m
+                                                                        .field("name")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(HYBRID_BOOST_NAME_MATCH)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(m -> m
+                                                                        .field("name.ngram")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(HYBRID_BOOST_NAME_NGRAM)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(m -> m
+                                                                        .field("description")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(HYBRID_BOOST_DESCRIPTION)
+                                                                )
+                                                        )
+                                                        .should(sh -> sh
+                                                                .match(m -> m
+                                                                        .field("address")
+                                                                        .query(trimmedKeyword)
+                                                                        .boost(HYBRID_BOOST_ADDRESS)
+                                                                )
+                                                        )
+                                                        .minimumShouldMatch("1")
+                                                )
+                                        )
+                                        .functions(fn -> fn
+                                                .scriptScore(ss -> ss
+                                                        .script(s -> s
+                                                                .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                                                .params("queryVector", JsonData.of(queryEmbedding))
+                                                        )
+                                                )
+                                                .weight(HYBRID_VECTOR_SCORE_WEIGHT)
+                                        )
+                                        .scoreMode(FunctionScoreMode.Sum)
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            }
+            SearchHits<StoreDocument> searchHits = elasticsearchOperations.search(query, StoreDocument.class);
+
+            log.info("Hybrid search (paginated) completed: keyword={}, totalHits={}", 
+                    trimmedKeyword, searchHits.getTotalHits());
+
+            List<StoreSearchResponse> results = searchHits.stream()
+                    .limit(pageSize)
+                    .map(hit -> {
+                        float score = 0.0f;
+                        try {
+                            score = hit.getScore();
+                        } catch (Exception e) {
+                            log.debug("Failed to get score for hit", e);
+                        }
+                        return StoreSearchResponse.of(hit.getContent(), score);
+                    })
+                    .toList();
+
+            return StoreSearchPageResponse.of(results, pageSize);
+
+        } catch (Exception e) {
+            log.error("Failed to execute hybrid search (paginated): keyword={}, cursor={}, size={}", 
+                    keyword, cursor, size, e);
+            log.info("Falling back to BM25 search due to error");
+            return searchStoresWithRecommendation(keyword, cursor, size);
+        }
+    }
+
+    /**
+     * 순수 시맨틱 검색 (Keyset Pagination 지원)
+     * 벡터 유사도만을 사용한 순수 시맨틱 검색
+     * 
+     * @param keyword 검색 키워드
+     * @param cursor 이전 페이지의 마지막 storeId (null이면 첫 페이지)
+     * @param size 페이지 크기 (기본값: 20, 최대: 100)
+     * @return 페이지네이션된 검색 결과
+     */
+    public StoreSearchPageResponse executeSemanticSearch(String keyword, Long cursor, Integer size) {
+        try {
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return StoreSearchPageResponse.of(List.of(), size);
+            }
+
+            String trimmedKeyword = keyword.trim();
+            int pageSize = (size == null || size <= 0) ? 20 : Math.min(size, 100);
+
+            log.info("Executing semantic search (paginated) for keyword: {}, cursor: {}, size: {}", 
+                    trimmedKeyword, cursor, pageSize);
+
+            // 1. 검색어를 임베딩 벡터로 변환
+            List<Float> queryEmbedding = openAIEmbeddingService.generateEmbedding(trimmedKeyword);
+            
+            if (queryEmbedding == null || queryEmbedding.isEmpty()) {
+                log.warn("Failed to generate embedding for keyword: {}", trimmedKeyword);
+                return StoreSearchPageResponse.of(List.of(), pageSize);
+            }
+
+            // 2. Script Score 쿼리 구성 (Keyset Pagination 지원)
+            Query query;
+            if (cursor != null) {
+                // cursor가 있으면 storeId 필터 추가
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .bool(b -> b
+                                        .must(m -> m
+                                                .scriptScore(ss -> ss
+                                                        .query(qq -> qq.matchAll(ma -> ma))
+                                                        .script(s -> s
+                                                                .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                                                .params("queryVector", JsonData.of(queryEmbedding))
+                                                        )
+                                                )
+                                        )
+                                        .must(m -> m
+                                                .script(s -> s
+                                                        .script(sc -> sc
+                                                                .source("doc['store_id'].value > params.cursor")
+                                                                .params("cursor", JsonData.of(cursor))
+                                                        )
+                                                )
+                                        )
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            } else {
+                // 첫 페이지
+                query = NativeQuery.builder()
+                        .withQuery(q -> q
+                                .scriptScore(ss -> ss
+                                        .query(qq -> qq.matchAll(ma -> ma))
+                                        .script(s -> s
+                                                .source("cosineSimilarity(params.queryVector, 'embedding') + 1.0")
+                                                .params("queryVector", JsonData.of(queryEmbedding))
+                                        )
+                                )
+                        )
+                        .withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)))
+                        .withSort(s -> s.field(f -> f.field("store_id").order(SortOrder.Asc)))
+                        .withMaxResults(pageSize + 1)
+                        .build();
+            }
+            SearchHits<StoreDocument> searchHits = elasticsearchOperations.search(query, StoreDocument.class);
+
+            log.info("Semantic search (paginated) completed: keyword={}, totalHits={}", 
+                    trimmedKeyword, searchHits.getTotalHits());
+
+            List<StoreSearchResponse> results = searchHits.stream()
+                    .limit(pageSize)
+                    .map(hit -> {
+                        float score = 0.0f;
+                        try {
+                            score = hit.getScore();
+                        } catch (Exception e) {
+                            log.debug("Failed to get score for hit", e);
+                        }
+                        return StoreSearchResponse.of(hit.getContent(), score);
+                    })
+                    .toList();
+
+            return StoreSearchPageResponse.of(results, pageSize);
+
+        } catch (Exception e) {
+            log.error("Failed to execute semantic search (paginated): keyword={}, cursor={}, size={}", 
+                    keyword, cursor, size, e);
+            return StoreSearchPageResponse.of(List.of(), size != null ? size : 20);
         }
     }
 }
