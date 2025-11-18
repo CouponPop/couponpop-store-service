@@ -134,8 +134,8 @@
 ### 사전 요구사항
 
 - **Java 17** 이상
-- **MySQL 8.17.4** 이상
-- **Elasticsearch 8.x**
+- **MySQL 8.0** 이상
+- **Elasticsearch 8.17.4**
 - **OpenAI API Key**
 - **Docker** (선택사항)
 - **Gradle 8.7.0** (Wrapper 포함)
