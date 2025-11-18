@@ -1,0 +1,5 @@
+2025-11-05 10:00:00 INFO Test log message 1
+2025-11-05 10:00:01 ERROR Test error message
+2025-11-05 10:00:02 DEBUG Test debug message
+{"timestamp":"2025-11-05T10:00:03Z","level":"INFO","message":"JSON log test"}
+2025-11-06 00:33:14 INFO Test log with Korean timezone
